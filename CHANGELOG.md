@@ -1,5 +1,13 @@
 # 更新日志
 
+## [0.3.0] - 2026-06-27
+
+### 新增
+
+- 标题栏增加锁定按钮（🔓/🔒）
+- 锁定后，任务项、添加框、添加按钮等下方交互区域全部不可操作，防止误触
+- 解锁后恢复所有交互
+
 ## [0.2.0] - 2026-06-27
 
 ### 新增
@@ -20,5 +28,6 @@
 - 支持鼠标拖动调整窗口位置
 - 提供 PyInstaller 打包配置和开机自启脚本
 
+[0.3.0]: https://github.com/wx528/task-widget/releases/tag/v0.3.0
 [0.2.0]: https://github.com/wx528/task-widget/releases/tag/v0.2.0
 [0.1.0]: https://github.com/wx528/task-widget/releases/tag/v0.1.0

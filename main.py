@@ -377,6 +377,7 @@ class TaskWidget(QWidget):
         self.drag_pos: QPoint | None = None
         self.store = TaskStore()
         self.compact_mode = False
+        self.locked = False
 
         self._setup_tray()
         self._build_ui()
@@ -459,6 +460,12 @@ class TaskWidget(QWidget):
 
         title_layout.addStretch()
 
+        self.lock_btn = QPushButton("🔓")
+        self.lock_btn.setToolTip("锁定：防止误操作")
+        self.lock_btn.setCheckable(True)
+        self.lock_btn.setFixedSize(22, 22)
+        self.lock_btn.clicked.connect(self._toggle_lock)
+
         self.compact_btn = QPushButton("◱")
         self.compact_btn.setToolTip("切换精简模式")
         self.compact_btn.setCheckable(True)
@@ -470,6 +477,7 @@ class TaskWidget(QWidget):
         minimize_btn.setFixedSize(22, 22)
         minimize_btn.clicked.connect(self.showMinimized)
 
+        title_layout.addWidget(self.lock_btn)
         title_layout.addWidget(self.compact_btn)
         title_layout.addWidget(minimize_btn)
         layout.addLayout(title_layout)
@@ -526,13 +534,13 @@ class TaskWidget(QWidget):
         self.input.returnPressed.connect(self._add_task)
         add_layout.addWidget(self.input, 1)
 
-        add_btn = QPushButton("+")
-        add_btn.setObjectName("add")
-        add_btn.setFixedSize(28, 28)
-        add_btn.setToolTip("添加任务")
-        add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_btn.clicked.connect(self._add_task)
-        add_layout.addWidget(add_btn)
+        self.add_btn = QPushButton("+")
+        self.add_btn.setObjectName("add")
+        self.add_btn.setFixedSize(28, 28)
+        self.add_btn.setToolTip("添加任务")
+        self.add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.add_btn.clicked.connect(self._add_task)
+        add_layout.addWidget(self.add_btn)
         normal_layout.addLayout(add_layout)
 
         # Summary
@@ -624,6 +632,24 @@ class TaskWidget(QWidget):
         painter.end()
         return QIcon(pixmap)
 
+    def _toggle_lock(self):
+        locked = self.lock_btn.isChecked()
+        self._set_locked(locked)
+
+    def _set_locked(self, locked: bool):
+        self.locked = locked
+        self.lock_btn.setChecked(locked)
+        if locked:
+            self.lock_btn.setText("🔒")
+            self.lock_btn.setToolTip("已锁定：点击下方项目和按钮不可操作")
+        else:
+            self.lock_btn.setText("🔓")
+            self.lock_btn.setToolTip("锁定：防止误操作")
+
+        self.tasks_container.setEnabled(not locked)
+        self.input.setEnabled(not locked)
+        self.add_btn.setEnabled(not locked)
+
     def _toggle_compact_mode(self):
         self.compact_mode = not self.compact_mode
         self.compact_btn.setChecked(self.compact_mode)
@@ -682,6 +708,7 @@ class TaskWidget(QWidget):
 
         self.empty_hint.setVisible(len(self.store.tasks) == 0)
         self._update_summary()
+        self._set_locked(self.locked)
 
     def _update_summary(self):
         total = len(self.store.tasks)
