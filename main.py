@@ -10,8 +10,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QSize, Qt, QTimer
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QMouseEvent, QPainter, QPixmap
+from PySide6.QtCore import QPoint, QMimeData, QSize, Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QDrag, QFont, QIcon, QMouseEvent, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -112,6 +112,52 @@ class TaskStore:
                 return True
         return False
 
+    def move(self, from_index: int, to_index: int) -> bool:
+        if not (0 <= from_index < len(self.tasks) and 0 <= to_index < len(self.tasks)):
+            return False
+        if from_index == to_index:
+            return True
+        task = self.tasks.pop(from_index)
+        # Adjust target index after removal if target was after source
+        if to_index > from_index:
+            to_index -= 1
+        self.tasks.insert(to_index, task)
+        self.save()
+        return True
+
+
+class DragHandle(QLabel):
+    def __init__(self, parent: "TaskItemWidget"):
+        super().__init__("≡", parent)
+        self.task_item = parent
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip("拖动排序")
+        self.setStyleSheet(
+            """
+            QLabel {
+                color: rgba(255, 255, 255, 120);
+                font-size: 14px;
+                padding: 0 2px;
+            }
+            QLabel:hover {
+                color: rgba(255, 255, 255, 200);
+            }
+            """
+        )
+        self.setFixedWidth(16)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            drag = QDrag(self)
+            mime = QMimeData()
+            mime.setData("application/x-taskwidget-taskid", self.task_item.task.id.encode("utf-8"))
+            drag.setMimeData(mime)
+            drag.exec(Qt.DropAction.MoveAction)
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        event.accept()
+
 
 class TaskItemWidget(QWidget):
     def __init__(self, task: Task, store: TaskStore, parent: "TaskWidget"):
@@ -122,9 +168,13 @@ class TaskItemWidget(QWidget):
         self._build_ui()
 
     def _build_ui(self):
+        self.setAcceptDrops(True)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
+
+        self.drag_handle = DragHandle(self)
+        layout.addWidget(self.drag_handle)
 
         self.checkbox = QCheckBox()
         self.checkbox.setChecked(self.task.completed)
@@ -242,6 +292,74 @@ class TaskItemWidget(QWidget):
         self.store.remove(self.task.id)
         if self.main_widget:
             self.main_widget._reload_tasks()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-taskwidget-taskid"):
+            event.acceptProposedAction()
+            self._set_drop_highlight(True)
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-taskwidget-taskid"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._set_drop_highlight(False)
+
+    def dropEvent(self, event):
+        self._set_drop_highlight(False)
+        mime = event.mimeData()
+        if not mime.hasFormat("application/x-taskwidget-taskid"):
+            event.ignore()
+            return
+
+        source_id = bytes(mime.data("application/x-taskwidget-taskid")).decode("utf-8")
+        if source_id == self.task.id:
+            event.ignore()
+            return
+
+        source_widget = None
+        for i in range(self.main_widget.tasks_layout.count() - 1):  # exclude stretch
+            widget = self.main_widget.tasks_layout.itemAt(i).widget()
+            if isinstance(widget, TaskItemWidget) and widget.task.id == source_id:
+                source_widget = widget
+                break
+
+        if source_widget is None or self.main_widget is None:
+            event.ignore()
+            return
+
+        source_index = self.main_widget.tasks_layout.indexOf(source_widget)
+        target_index = self.main_widget.tasks_layout.indexOf(self)
+        if source_index < 0 or target_index < 0:
+            event.ignore()
+            return
+
+        # Account for trailing stretch in layout index -> store index mapping
+        if source_index >= self.main_widget.tasks_layout.count() - 1:
+            source_index = len(self.store.tasks) - 1
+        if target_index >= self.main_widget.tasks_layout.count() - 1:
+            target_index = len(self.store.tasks) - 1
+
+        self.store.move(source_index, target_index)
+        self.main_widget._reload_tasks()
+        event.acceptProposedAction()
+
+    def _set_drop_highlight(self, active: bool):
+        if active:
+            self.setStyleSheet(
+                """
+                TaskItemWidget {
+                    background-color: rgba(79, 195, 247, 40);
+                    border-radius: 6px;
+                }
+                """
+            )
+        else:
+            self.setStyleSheet("")
 
 
 class TaskWidget(QWidget):

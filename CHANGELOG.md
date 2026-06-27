@@ -1,5 +1,12 @@
 # 更新日志
 
+## [0.2.0] - 2026-06-27
+
+### 新增
+
+- 每个任务前增加拖动块（≡），支持拖拽调整任务顺序
+- 拖放排序后自动保存到 `data/tasks.json`
+
 ## [0.1.0] - 2026-06-27
 
 ### 新增
@@ -13,4 +20,5 @@
 - 支持鼠标拖动调整窗口位置
 - 提供 PyInstaller 打包配置和开机自启脚本
 
+[0.2.0]: https://github.com/wx528/task-widget/releases/tag/v0.2.0
 [0.1.0]: https://github.com/wx528/task-widget/releases/tag/v0.1.0
